@@ -6,8 +6,9 @@
     "distDir": "../dist"
   },
   "package": {
-    "productName": "niti-ide",
-    "version": "0.1.0"
+    "productName": "Laplace IDE",
+    "version": "1.0.0"
+   
   },
   "tauri": {
     "allowlist": {
@@ -30,7 +31,7 @@
     },
     "windows": [
       {
-        "title": "niti-ide",
+        "title": "Laplace IDE",
         "width": 800,
         "height": 600
       }
@@ -41,7 +42,7 @@
     "bundle": {
       "active": true,
       "targets": "all",
-      "identifier": "com.niti-ide.app",
+      "identifier": "com.laplace-ide.app",
       "icon": [
         "icons/32x32.png",
         "icons/128x128.png",

@@ -1,4 +1,5 @@
 use std::fs;
+use std::thread;
 use tauri::Manager;
 use serialport::{available_ports, SerialPort};
 use std::sync::{Arc, Mutex};
@@ -24,15 +25,15 @@ struct SharedSerialPort(Arc<Mutex<Option<Box<dyn SerialPort>>>>);
 
 fn main() {
     tauri::Builder::default()
-    
         .manage(SharedSerialPort(Arc::new(Mutex::new(None))))
         .invoke_handler(tauri::generate_handler![
+            start_rust_analyzer,
             exit,
             list_serial_ports,
             open_file,
             save_file,
             create_new_file,
-            get_about_us,
+            open_file_explorer,
             get_github_url,
             close_serial_port,
             open_serial_port,
@@ -42,19 +43,16 @@ fn main() {
             build_project,
             run_project,
             flash_to_controller,
-            open_cmd_window_and_build,
-            open_file_explorer
+            open_cmd_window_and_build
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
 
-
 #[tauri::command]
 fn exit() {
     std::process::exit(0);
 }
-
 
 #[tauri::command]
 fn open_file(path: String) -> Result<String, String> {
@@ -83,12 +81,7 @@ fn create_new_file() -> Result<String, String> {
 
 #[tauri::command]
 fn get_github_url() -> String {
-    "https://github.com/cyberkutti-idec".to_string()
-}
-
-#[tauri::command]
-fn get_about_us() -> String {
-    "Sreeraj Veajesh\ncyberkutti@gmail.com\nGitHub: cyberkutti-idec".to_string()
+    "https://github.com/cyberkutti-iedc".to_string()
 }
 
 #[tauri::command]
@@ -110,7 +103,6 @@ fn open_serial_port(port: String, state: tauri::State<SharedSerialPort>) -> Resu
             .open()
             .map_err(|e| format!("Failed to open port: {}", e))?;
 
-        // Store the opened serial port in shared state
         *state.0.lock().unwrap() = Some(port);
         Ok(())
     } else {
@@ -264,7 +256,6 @@ fn build_project(file_path: String, window: tauri::Window) -> Result<(), String>
         std::thread::spawn(move || {
             for line in reader.lines() {
                 if let Ok(line) = line {
-                    // Send each line of output to the frontend
                     win.emit("build-output", line).unwrap();
                 }
             }
@@ -274,7 +265,6 @@ fn build_project(file_path: String, window: tauri::Window) -> Result<(), String>
         std::thread::spawn(move || {
             for line in error_reader.lines() {
                 if let Ok(line) = line {
-                    // Send each line of error to the frontend
                     win_err.emit("build-output", format!("ERROR: {}", line)).unwrap();
                 }
             }
@@ -309,7 +299,7 @@ fn run_project(file_path: String, selected_port: Option<String>) -> Result<Strin
 
         if let Some(port) = selected_port {
             let port_arg = format!("--port {}", port);
-            args.push(port_arg); // Push the owned port argument
+            args.push(port_arg);
         }
 
         // Run the command
@@ -324,10 +314,8 @@ fn run_project(file_path: String, selected_port: Option<String>) -> Result<Strin
     }
 }
 
-
 #[tauri::command]
 fn open_cmd_window_and_build(project_dir: String) -> Result<(), String> {
-    // Execute the command to open a new CMD window and run cargo build
     match Command::new("cmd")
         .args(&["/C", "start", "cmd", "/K", "cargo build"])
         .current_dir(&project_dir)
@@ -347,7 +335,7 @@ fn flash_to_controller(port: String, elf_path: String, window: Window) -> Result
     let mut command = Command::new("ravedude")
         .arg("uno")
         .arg("-P")
-        .arg(port) // Use the port passed to the function
+        .arg(port)
         .arg("-cb")
         .arg("57600")
         .arg(&elf_path)
@@ -389,6 +377,11 @@ fn flash_to_controller(port: String, elf_path: String, window: Window) -> Result
 
 #[tauri::command]
 fn open_file_explorer(path: String) -> Result<(), String> {
+    if !Path::new(&path).exists() {
+        return Err(format!("The specified path does not exist: {}", path));
+    }
+
+    // Open the file explorer at the given path
     Command::new("explorer")
         .arg("/select,")
         .arg(&path)
@@ -401,4 +394,17 @@ fn open_file_explorer(path: String) -> Result<(), String> {
                 Err("Failed to open file explorer".to_string())
             }
         })
+}
+
+#[tauri::command]
+async fn start_rust_analyzer() -> Result<String, String> {
+    let mut child = Command::new("rust-analyzer")
+        .arg("--stdio")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to start rust-analyzer: {}", e))?;
+    
+    // Hold child process globally or manage it with a messaging system
+    Ok("Rust Analyzer started".to_string())
 }
