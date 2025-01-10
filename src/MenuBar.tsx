@@ -6,8 +6,6 @@ import {
   MenuButton,
   MenuList,
   MenuItem,
-  
-  
   Modal,
   ModalOverlay,
   ModalContent,
@@ -16,10 +14,13 @@ import {
   ModalFooter,
   Text,
   useDisclosure,
-  Box,
-  Stack,
+  
+  
+  useColorMode,
+  useColorModeValue,
+  IconButton,
 } from '@chakra-ui/react';
-//import { MoonIcon, SunIcon } from '@chakra-ui/icons';
+import { FaSun, FaMoon } from 'react-icons/fa'; // Import sun and moon icons
 import { invoke } from '@tauri-apps/api/tauri';
 
 interface MenuBarProps {
@@ -30,9 +31,9 @@ interface MenuBarProps {
   zoomOut: () => void;
   fitWindow: () => void;
   buildProject: () => void;
-  runProject: () => void;
   flashToController: () => void;
-  toggleColorMode: () => void;
+  runProject: () => void;
+  openFolder: () => void;
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({
@@ -43,87 +44,108 @@ const MenuBar: React.FC<MenuBarProps> = ({
   zoomOut,
   fitWindow,
   buildProject,
-  runProject
+  runProject,
+  openFolder,
 }) => {
-  //const { colorMode, toggleColorMode: toggleTheme } = useColorMode();
-  const { isOpen, onOpen, onClose } = useDisclosure();
+
+  const { isOpen: isAboutUsOpen, onOpen: onOpenAboutUs, onClose: onCloseAboutUs } = useDisclosure();
   const { isOpen: isExitModalOpen, onOpen: onOpenExitModal, onClose: onCloseExitModal } = useDisclosure();
+  const { isOpen: isBoardInfoOpen, onOpen: onOpenBoardInfo, onClose: onCloseBoardInfo } = useDisclosure();
+
+  const { toggleColorMode, colorMode } = useColorMode(); // Hook for theme toggle
 
   const [githubUrl, setGithubUrl] = useState<string>('');
-  const [aboutUs, setAboutUs] = useState<string>('');
+  const aboutUs = `We are a group of students from the 2025 batch of Electronics and Communication Engineering (ECE) at SNMIMT. Our goal is to develop a Rust-based framework specifically designed for embedded systems. This framework is officially supported and paired with our lightweight, easy-to-use IDE called Laplace IDE. For more information, visit our website.`;
   const [boardDetails, setBoardDetails] = useState<string>('');
 
   const handleShowBoardInfo = async () => {
     try {
       const details = await invoke<string>('get_board_info');
       setBoardDetails(details);
-      onOpen();
+      onOpenBoardInfo();
     } catch (error) {
       console.error('Error fetching board info:', error);
     }
   };
 
   useEffect(() => {
+    // Fetch GitHub URL on component mount
     invoke<string>('get_github_url')
       .then((url) => setGithubUrl(url))
       .catch((err) => console.error('Error fetching GitHub URL:', err));
-
-    invoke<string>('get_about_us')
-      .then((info) => setAboutUs(info))
-      .catch((err) => console.error('Error fetching About Us info:', err));
   }, []);
 
   const handleExit = () => {
-    // Implement actual exit logic here
-    window.close(); // This might not work in some contexts; adjust as needed
+    window.close();
   };
+
+  // Dynamic colors for light and dark modes
+  const bgColor = useColorModeValue('#f7f7f7', '#2d2d2d');
+  const menuBgColor = useColorModeValue('#fff', '#2d2d2d');
+  const hoverBgColor = useColorModeValue('#007acc', '#007acc');
+  const textColor = useColorModeValue('black', 'white');
 
   return (
     <>
-      <HStack spacing={4} padding={2} backgroundColor="gray.700" boxShadow="md">
+      <HStack
+        spacing={2}
+        padding={1}
+        backgroundColor={bgColor} // Menu bar background color
+        boxShadow="md"
+        height="40px" // Smaller height for a more minimalistic appearance
+      >
         {/* File Menu */}
         <Menu>
-          <MenuButton as={Button}>File</MenuButton>
-          <MenuList>
-            <MenuItem onClick={createNewFile}>
-              New File <Text fontSize="sm" color="gray.400" ml={2}>(Ctrl+N)</Text>
+          <MenuButton as={Button} variant="ghost" size="sm" colorScheme="blue" _hover={{ backgroundColor: hoverBgColor }}>
+            File
+          </MenuButton>
+          <MenuList backgroundColor={menuBgColor} color={textColor} border="none">
+            <MenuItem onClick={createNewFile} _hover={{ backgroundColor: hoverBgColor }}>
+              New File (Ctrl+N)
             </MenuItem>
-            <MenuItem onClick={openFile}>
-              Open File <Text fontSize="sm" color="gray.400" ml={2}>(Ctrl+O)</Text>
+            <MenuItem onClick={openFile} _hover={{ backgroundColor: hoverBgColor }}>
+              Open File (Ctrl+O)
             </MenuItem>
-            <MenuItem onClick={saveFile}>
-              Save File <Text fontSize="sm" color="gray.400" ml={2}>(Ctrl+S)</Text>
+            <MenuItem onClick={saveFile} _hover={{ backgroundColor: hoverBgColor }}>
+              Save File (Ctrl+S)
             </MenuItem>
-            <MenuItem onClick={onOpenExitModal}>
-              Exit <Text fontSize="sm" color="gray.400" ml={2}>(Ctrl+Q)</Text>
+            <MenuItem onClick={onOpenExitModal} _hover={{ backgroundColor: hoverBgColor }}>
+              Exit (Ctrl+Q)
+            </MenuItem>
+            <MenuItem onClick={openFolder} _hover={{ backgroundColor: hoverBgColor }}>
+              Open Folder (Ctrl+Shift+O)
             </MenuItem>
           </MenuList>
         </Menu>
 
-        {/* View Menu */}
+        {/* Other Menus (View, Help, Run) */}
         <Menu>
-          <MenuButton as={Button}>View</MenuButton>
-          <MenuList>
-            <MenuItem onClick={zoomIn}>
-              Zoom In <Text fontSize="sm" color="gray.400" ml={2}>(Ctrl+Shift +)</Text>
+          <MenuButton as={Button} variant="ghost" size="sm" colorScheme="blue" _hover={{ backgroundColor: hoverBgColor }}>
+            View
+          </MenuButton>
+          <MenuList backgroundColor={menuBgColor} color={textColor} border="none">
+            <MenuItem onClick={zoomIn} _hover={{ backgroundColor: hoverBgColor }}>
+              Zoom In (Ctrl+Plus)
             </MenuItem>
-            <MenuItem onClick={zoomOut}>
-              Zoom Out <Text fontSize="sm" color="gray.400" ml={2}>(Ctrl+Shift -)</Text>
+            <MenuItem onClick={zoomOut} _hover={{ backgroundColor: hoverBgColor }}>
+              Zoom Out (Ctrl+Minus)
             </MenuItem>
-            <MenuItem onClick={fitWindow}>
-              Fit Window
+            <MenuItem onClick={fitWindow} _hover={{ backgroundColor: hoverBgColor }}>
+              Fit Window (Ctrl+F)
             </MenuItem>
           </MenuList>
         </Menu>
 
         {/* Help Menu */}
         <Menu>
-          <MenuButton as={Button}>Help</MenuButton>
-          <MenuList>
-            <MenuItem onClick={() => window.open(githubUrl)}>
+          <MenuButton as={Button} variant="ghost" size="sm" colorScheme="blue" _hover={{ backgroundColor: hoverBgColor }}>
+            Help
+          </MenuButton>
+          <MenuList backgroundColor={menuBgColor} color={textColor} border="none">
+            <MenuItem onClick={() => window.open(githubUrl)} _hover={{ backgroundColor: hoverBgColor }}>
               GitHub Source Code
             </MenuItem>
-            <MenuItem onClick={() => alert(aboutUs)}>
+            <MenuItem onClick={onOpenAboutUs} _hover={{ backgroundColor: hoverBgColor }}>
               About Us
             </MenuItem>
           </MenuList>
@@ -131,75 +153,74 @@ const MenuBar: React.FC<MenuBarProps> = ({
 
         {/* Run Menu */}
         <Menu>
-          <MenuButton as={Button}>Run</MenuButton>
-          <MenuList>
-            <MenuItem onClick={buildProject}>
-              Build
+          <MenuButton as={Button} variant="ghost" size="sm" colorScheme="blue" _hover={{ backgroundColor: hoverBgColor }}>
+            Run
+          </MenuButton>
+          <MenuList backgroundColor={menuBgColor} color={textColor} border="none">
+            <MenuItem onClick={buildProject} _hover={{ backgroundColor: hoverBgColor }}>
+              Build (Ctrl+B)
             </MenuItem>
-            <MenuItem onClick={runProject}>
-              Run
+            <MenuItem onClick={runProject} _hover={{ backgroundColor: hoverBgColor }}>
+              Run (Ctrl+R)
             </MenuItem>
-           
-            <MenuItem onClick={handleShowBoardInfo}>
+            <MenuItem onClick={handleShowBoardInfo} _hover={{ backgroundColor: hoverBgColor }}>
               Show Board Info
             </MenuItem>
           </MenuList>
         </Menu>
 
-        {/* Theme Toggle Button 
+        {/* Theme Toggle Button with Sun and Moon Icons */}
         <IconButton
-      aria-label="Toggle Dark Mode"
-      icon={colorMode === 'dark' ? <SunIcon /> : <MoonIcon />}
-      onClick={toggleColorMode}
-      bg={colorMode === 'dark' ? '#ccc' : 'gray.800'} // Light mode bg: #ccc, Dark mode bg: gray.800
-      color={colorMode === 'dark' ? 'gray.800' : 'whiteAlpha.900'} // Text color for each mode
-      _hover={{
-        bg: colorMode === 'dark' ? '#bbb' : 'gray.700', // Adjust hover colors
-      }}
-    />*/}
+          icon={colorMode === 'light' ? <FaMoon /> : <FaSun />} // Sun for light mode, Moon for dark mode
+          aria-label="Toggle theme"
+          size="sm"
+          variant="ghost"
+          onClick={toggleColorMode} // Toggle theme
+          colorScheme={colorMode === 'light' ? 'blue' : 'orange'} // Button color based on the mode
+        />
       </HStack>
 
-      {/* Exit Confirmation Modal */}
-      <Modal isOpen={isExitModalOpen} onClose={onCloseExitModal} size="lg" isCentered>
+      {/* Modals (Exit, About Us, Board Info) */}
+
+      {/* Exit Modal */}
+      <Modal isOpen={isExitModalOpen} onClose={onCloseExitModal}>
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>Confirm Exit</ModalHeader>
+          <ModalHeader>Exit Application</ModalHeader>
           <ModalBody>
-            <Text fontSize="md">
-              Are you sure you want to exit the application? 😔
-            </Text>
+            <Text>Are you sure you want to exit the application?</Text>
           </ModalBody>
           <ModalFooter>
-            <Button colorScheme="blue" mr={3} onClick={handleExit}>
-              Yes, Exit
-            </Button>
-            <Button variant="outline" onClick={onCloseExitModal}>
-              Cancel
-            </Button>
+            <Button variant="ghost" onClick={onCloseExitModal}>Cancel</Button>
+            <Button colorScheme="red" ml={3} onClick={handleExit}>Exit</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* About Us Modal */}
+      <Modal isOpen={isAboutUsOpen} onClose={onCloseAboutUs}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>About Us</ModalHeader>
+          <ModalBody>
+            <Text>{aboutUs}</Text>
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="blue" onClick={onCloseAboutUs}>Close</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
 
       {/* Board Info Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="lg" isCentered>
+      <Modal isOpen={isBoardInfoOpen} onClose={onCloseBoardInfo}>
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Board Information</ModalHeader>
           <ModalBody>
-            <Box p={4}>
-              <Stack spacing={2}>
-                {boardDetails.split('\n').map((line, index) => (
-                  <Text key={index} fontSize="md">
-                    {line}
-                  </Text>
-                ))}
-              </Stack>
-            </Box>
+            <Text>{boardDetails}</Text>
           </ModalBody>
           <ModalFooter>
-            <Button colorScheme="red" onClick={onClose}>
-              Close
-            </Button>
+            <Button colorScheme="blue" onClick={onCloseBoardInfo}>Close</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

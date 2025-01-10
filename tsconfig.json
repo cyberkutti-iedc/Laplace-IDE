@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    
+    "noEmitOnError": false, // Allows emitting code even if there are errors
     "target": "ES2020",
     "useDefineForClassFields": true,
     "lib": ["ES2020", "DOM", "DOM.Iterable"],

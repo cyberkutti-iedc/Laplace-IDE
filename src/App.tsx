@@ -3,7 +3,6 @@ import {
   ChakraProvider,
   Box,
   extendTheme,
-  useColorMode,
   useToast,
   Button,
   Modal,
@@ -13,7 +12,8 @@ import {
   ModalBody,
   ModalFooter,
   useDisclosure,
-  Spinner, Center
+  Spinner,
+  Center
 } from '@chakra-ui/react';
 import MonacoEditor from '@monaco-editor/react';
 import { invoke } from '@tauri-apps/api/tauri';
@@ -21,11 +21,34 @@ import { dialog, window as tauriWindow } from '@tauri-apps/api';
 import MenuBar from './MenuBar';
 import TabBar from './TabBar';
 import SerialMonitor from './SerialMonitor';
+import SplashScreen from './SplashScreen';
 
 const theme = extendTheme({
   config: {
     initialColorMode: 'dark',
-    useSystemColorMode: false,
+    useSystemColorMode: true,
+  },
+  colors: {
+    suggestionBackground: '#1E1E1E',
+    suggestionText: '#D4D4D4',
+    suggestionHighlight: '#569CD6',
+    background: '#1E1E1E',
+    text: '#D4D4D4',
+    primary: '#007ACC',
+    secondary: '#3C3C3C',
+    accent: '#569CD6',
+    error: '#F44747',
+    warning: '#FF8800',
+    info: '#007ACC',
+    success: '#4CAF50',
+  },
+  styles: {
+    global: {
+      body: {
+        bg: 'background',
+        color: 'text',
+      },
+    },
   },
 });
 
@@ -33,71 +56,77 @@ const App = () => {
   const [code, setCode] = useState('// Write your Rust code here\n');
   const [fontSize, setFontSize] = useState(14);
   const [filePath, setFilePath] = useState<string | null>(null);
+
   const [editorTabs, setEditorTabs] = useState<Array<{ path: string; content: string }>>([]);
   const [activeTab, setActiveTab] = useState<number>(0);
- 
-  const { toggleColorMode } = useColorMode();
+  const [isAppLoading, setIsAppLoading] = useState(true);
+
   const toast = useToast();
-  const { isOpen, onOpen, onClose } = useDisclosure(); // Chakra UI modal hooks
-  const [pendingAction, setPendingAction] = useState<'quit' | null>(null);
+  const { isOpen, onClose } = useDisclosure();
+  const [pendingAction] = useState<'quit' | null>(null);
   const [, setConfirmOpen] = useState(false);
   const [elfFilePath] = useState<string | null>(null);
-  const [selectedPort] = useState<string>(''); 
- 
+  const [selectedPort] = useState<string>('');
   const [isFlashing, setIsFlashing] = useState(false);
   const [isLoading] = useState(false);
 
   useEffect(() => {
-    
+    const timer = setTimeout(() => {
+      setIsAppLoading(false); // Close the splash screen after 20 seconds
+    }, 20000); // 20 seconds
 
-    // Add keyboard event listeners
-    const handleKeyDown = async (event: KeyboardEvent) => {
-      if (event.ctrlKey) {
-        switch (event.key) {
-          case 's':
-            event.preventDefault();
-            await saveFile();
-            break;
-          case 'o':
-            event.preventDefault();
-            await openFile();
-            break;
-          case 'n':
-            event.preventDefault();
-            createNewFile();
-            break;
-          case 'q':
-            event.preventDefault();
-            setPendingAction('quit');
-            onOpen();
-            break;
-          case '+':
-            if (event.shiftKey) {
-              event.preventDefault();
-              zoomIn();
-            }
-            break;
-          case '-':
-            event.preventDefault();
-            zoomOut();
-            break;
-          default:
-            break;
-        }
+    // Cleanup function to clear the timeout if the component unmounts
+    return () => clearTimeout(timer);
+  }, []);
+
+  const openFolder = async () => {
+    try {
+      const folderPath = await dialog.open({
+        directory: true,
+      });
+
+      if (typeof folderPath === 'string') {
+        toast({
+          title: 'Folder Opened',
+          description: `You opened the folder: ${folderPath}`,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+      } else {
+        toast({
+          title: 'No Folder Selected',
+          description: 'You did not select a folder.',
+          status: 'info',
+          duration: 3000,
+          isClosable: true,
+        });
       }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [editorTabs, activeTab, filePath, fontSize]);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        toast({
+          title: 'Error Opening Folder',
+          description: `There was an error opening the folder: ${error.message}`,
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+      } else {
+        toast({
+          title: 'Unexpected Error',
+          description: 'An unknown error occurred while opening the folder.',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+    }
+  };
 
   const openFile = async () => {
     const path = await dialog.open();
     if (typeof path === 'string') {
       const fileContent = await invoke<string>('open_file', { path });
-      setFilePath(path);
       setEditorTabs((prev) => [...prev, { path, content: fileContent }]);
       setActiveTab(editorTabs.length);
     }
@@ -178,7 +207,7 @@ const App = () => {
       if (!activeFile || !activeFile.path.endsWith('main.rs')) {
         throw new Error('Please open the main.rs file to build the project');
       }
-  
+
       const buildResult = await invoke<string>('build_project', { filePath: activeFile.path });
       console.log(buildResult);
       toast({
@@ -199,14 +228,14 @@ const App = () => {
       });
     }
   };
-  
+
   const runProject = async () => {
     try {
       const activeFile = editorTabs[activeTab];
       if (!activeFile || !activeFile.path.endsWith('main.rs')) {
         throw new Error('Please open the main.rs file to run the project');
       }
-  
+
       const runResult = await invoke<string>('run_project', { filePath: activeFile.path });
       console.log(runResult);
       toast({
@@ -227,9 +256,7 @@ const App = () => {
       });
     }
   };
-  
-  
-  
+
   const flashToController = async () => {
     if (!elfFilePath || !selectedPort) {
       toast({
@@ -241,17 +268,37 @@ const App = () => {
       });
       return;
     }
-  
-    setIsFlashing(true); // Start flashing
-    setConfirmOpen(true); // Open confirmation dialog
+
+    setIsFlashing(true);
+    setConfirmOpen(true);
+
+    try {
+      const result = await invoke<string>('flash_controller', { elfFilePath, port: selectedPort });
+      toast({
+        title: "Success",
+        description: result,
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to flash the controller: ${error}`,
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsFlashing(false);
+      setConfirmOpen(false);
+    }
   };
-  
- 
 
   const handleQuit = async () => {
     if (pendingAction === 'quit') {
       try {
-        await invoke('exit'); // Ensure the process exits
+        await invoke('exit');
       } catch (error) {
         console.error('Failed to invoke exit:', error);
         toast({
@@ -263,7 +310,7 @@ const App = () => {
         });
       }
       try {
-        await tauriWindow.appWindow.close(); // Close the window
+        await tauriWindow.appWindow.close();
       } catch (error) {
         console.error('Failed to close window:', error);
         toast({
@@ -275,19 +322,80 @@ const App = () => {
         });
       }
     }
-    onClose(); // Close the modal after performing the action
+    onClose();
   };
+
+  // Add keyboard event listener for shortcuts
+  useEffect(() => {
+    const handleKeydown = (event: KeyboardEvent) => {
+      // Save shortcut: Ctrl + S or Command + S
+      if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+        event.preventDefault();
+        saveFile();
+      }
+      // New file shortcut: Ctrl + N or Command + N
+      if ((event.ctrlKey || event.metaKey) && event.key === 'n') {
+        event.preventDefault();
+        createNewFile();
+      }
+      // Open file shortcut: Ctrl + O or Command + O
+      if ((event.ctrlKey || event.metaKey) && event.key === 'o') {
+        event.preventDefault();
+        openFile();
+      }
+      // Open folder shortcut: Ctrl + Shift + O
+      if ((event.ctrlKey || event.metaKey) && event.key === 'O' && event.shiftKey) {
+        event.preventDefault();
+        openFolder();
+      }
+    
+      // Zoom in shortcut: Ctrl + +
+      if ((event.ctrlKey || event.metaKey) && event.key === '+') {
+        event.preventDefault();
+        zoomIn();
+      }
+      // Zoom out shortcut: Ctrl + -
+      if ((event.ctrlKey || event.metaKey) && event.key === '-') {
+        event.preventDefault();
+        zoomOut();
+      }
+      // Build project shortcut: Ctrl + Shift + B
+      if ((event.ctrlKey || event.metaKey) && event.key === 'B' && event.shiftKey) {
+        event.preventDefault();
+        buildProject();
+      }
+      // Run project shortcut: Ctrl + Shift + R
+      if ((event.ctrlKey || event.metaKey) && event.key === 'R' && event.shiftKey) {
+        event.preventDefault();
+        runProject();
+      }
+      // Flash project shortcut: Ctrl + Shift + F
+      if ((event.ctrlKey || event.metaKey) && event.key === 'F' && event.shiftKey) {
+        event.preventDefault();
+        flashToController();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeydown);
+    return () => {
+      window.removeEventListener('keydown', handleKeydown);
+    };
+  }, [saveFile, createNewFile, openFile, openFolder,  zoomIn, zoomOut, buildProject, runProject, flashToController]);
+
+
+  if (isAppLoading) {
+    return <SplashScreen />;
+  }
 
   return (
     <ChakraProvider theme={theme}>
       <Box height="100vh" display="flex" flexDirection="column">
-
-      {isLoading && (
+        {isLoading && (
           <Center height="100%" width="100%">
             <Spinner size="xl" />
           </Center>
         )}
-        
+
         {isFlashing && (
           <Center height="100%" width="100%">
             <Spinner size="xl" />
@@ -300,22 +408,25 @@ const App = () => {
           saveFile={saveFile}
           zoomIn={zoomIn}
           zoomOut={zoomOut}
-          fitWindow={() => {setFontSize(16)}}
+          fitWindow={() => { setFontSize(16); }}
           buildProject={buildProject}
           runProject={runProject}
           flashToController={flashToController}
-          toggleColorMode={toggleColorMode}
+          openFolder={openFolder}
         />
+
         <Box flex={1} display="flex" flexDirection="row" overflow="hidden">
           <SerialMonitor />
           <Box flex={1} display="flex" flexDirection="column" overflow="hidden">
-           
             <TabBar
               tabs={editorTabs}
               activeTab={activeTab}
               setActiveTab={setActiveTab}
               closeTab={closeTab}
             />
+            <div>
+              {filePath ? `Current File: ${filePath}` : 'Keep Coding'}
+            </div>
             <Box flex={1} backgroundColor="gray.800" overflow="hidden">
               <MonacoEditor
                 width="100%"
@@ -324,6 +435,7 @@ const App = () => {
                 theme="vs-dark"
                 value={editorTabs[activeTab]?.content ?? ''}
                 options={{ fontSize }}
+                onMount={() => {}}
                 onChange={(value) => {
                   if (typeof value === 'string') {
                     setEditorTabs((prevTabs) => {
@@ -339,9 +451,6 @@ const App = () => {
         </Box>
       </Box>
 
-       
-
-      {/* Quit Confirmation Modal */}
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />
         <ModalContent>
